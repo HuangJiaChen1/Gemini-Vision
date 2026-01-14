@@ -1,0 +1,49 @@
+# Python
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Flask
+instance/
+.webassets-cache
+
+# Uploads and logs
+uploads/
+logs/
+*.log
+
+# Environment variables
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmpclaude-*
+tmp*
+
+# Test images (keep 1.jpg for testing)
+annotated_output.jpg
+*.jpg
+*.png
+*.jpeg
+!static/images/*.png
+!static/images/*.jpg
+
+# Keep directory structure
+!uploads/.gitkeep
+!logs/.gitkeep

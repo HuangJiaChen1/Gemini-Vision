@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Object Detective - Find What It Is!</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <!-- Welcome Screen -->
+    <div id="welcome-screen" class="screen active">
+        <div class="content">
+            <h1 class="title">🔍 Object Detective 🔍</h1>
+            <p class="subtitle">Let's find out what objects are!</p>
+            <div class="button-group">
+                <button id="camera-btn" class="big-button blue">
+                    📷 Use Camera
+                </button>
+                <button id="upload-btn" class="big-button green">
+                    📁 Upload Photo
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Camera Screen -->
+    <div id="camera-screen" class="screen">
+        <div class="content">
+            <h2 class="screen-title">Point at an Object!</h2>
+            <div class="camera-container">
+                <video id="video" autoplay playsinline></video>
+            </div>
+            <div class="button-group">
+                <button id="capture-btn" class="big-button red">
+                    📸 Snap Photo!
+                </button>
+                <button id="back-from-camera" class="small-button">
+                    ← Back
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Preview Screen -->
+    <div id="preview-screen" class="screen">
+        <div class="content">
+            <h2 class="screen-title">Does This Look Good?</h2>
+            <div class="preview-container">
+                <img id="preview-image" alt="Your photo">
+            </div>
+            <div class="button-group">
+                <button id="analyze-btn" class="big-button purple">
+                    🔍 Find Out What It Is!
+                </button>
+                <button id="retake-btn" class="small-button">
+                    🔄 Take Another Photo
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="screen">
+        <div class="content">
+            <div class="spinner"></div>
+            <p class="loading-text">🤔 Thinking hard...</p>
+            <p class="loading-subtext">Using my robot eyes!</p>
+        </div>
+    </div>
+
+    <!-- Selection Screen - Multiple Objects -->
+    <div id="selection-screen" class="screen">
+        <div class="content">
+            <div class="selection-card">
+                <h2 class="selection-title">👀 I See Multiple Things!</h2>
+                <p class="selection-message" id="selection-message">Which one do you want to know about?</p>
+                <div class="bbox-image-container">
+                    <img id="selection-image" alt="Your photo">
+                    <canvas id="bbox-canvas"></canvas>
+                </div>
+                <div id="object-buttons" class="object-buttons"></div>
+            </div>
+            <div class="button-group">
+                <button id="retake-selection-btn" class="small-button">
+                    📷 Take Another Photo
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Result Screen - Success -->
+    <div id="result-screen" class="screen">
+        <div class="content">
+            <div class="result-card">
+                <h2 class="result-title" id="object-name"></h2>
+                <p class="result-description" id="object-description"></p>
+                <div class="result-image-container">
+                    <img id="result-image" alt="Result">
+                </div>
+            </div>
+            <div class="button-group">
+                <button id="try-again-btn" class="big-button green">
+                    🔍 Find Another Object!
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Diagnostic Screen - Low Confidence -->
+    <div id="diagnostic-screen" class="screen">
+        <div class="content">
+            <div class="diagnostic-card">
+                <h2 class="diagnostic-title">🤷 Hmm, I'm Not Sure!</h2>
+                <p class="diagnostic-message" id="diagnostic-message"></p>
+
+                <div id="guesses-section" class="guesses-section">
+                    <h3 class="guesses-title">Could it be one of these?</h3>
+                    <div id="guesses-buttons" class="guesses-buttons"></div>
+                </div>
+            </div>
+            <div class="button-group">
+                <button id="retake-diagnostic-btn" class="big-button blue">
+                    📷 Try Taking Another Photo
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error Screen -->
+    <div id="error-screen" class="screen">
+        <div class="content">
+            <div class="error-card">
+                <h2 class="error-title">😕 Oops!</h2>
+                <p class="error-message" id="error-message"></p>
+            </div>
+            <div class="button-group">
+                <button id="back-from-error" class="big-button blue">
+                    🔄 Try Again
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden file input -->
+    <input type="file" id="file-input" accept="image/*" style="display: none;">
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
