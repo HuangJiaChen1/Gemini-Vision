@@ -14,23 +14,19 @@ class ImageAnalysis(BaseModel):
     comprehensive_explanation: str = Field(description="Stream-of-thought analysis describing what the AI sees")
     image_quality: str = Field(description="GOOD, MODERATE, or POOR")
     quality_issues: List[str] = Field(description="List of issues: blur, dark, cropped, obstruction, etc.", default_factory=list)
-
-
-class ImageDecision(BaseModel):
-    """Stage 2: Decision based on the analysis"""
-    object_count: int = Field(description="Number of distinct objects detected", ge=0)
-    detected_objects: List[str] = Field(description="Names of objects seen in the image")
-    confidence_level: str = Field(description="HIGH, MEDIUM, or LOW")
-    recommendation: str = Field(description="What to do next: CLASSIFY, MULTI_SELECT, or GUIDE")
+    detected_objects: List[str] = Field(description="Actual names of objects seen (e.g., Building, Car, Hand)", default_factory=list)
+    guidance: str = Field(description="1-2 sentence child-friendly advice to improve the photo", default="")
+    # Set by post-processing logic, not by LLM
+    confidence_level: str = Field(description="HIGH, MEDIUM, or LOW", default="LOW")
+    recommendation: str = Field(description="CLASSIFY, MULTI_SELECT, or GUIDE", default="GUIDE")
 
 
 class DiagnosticResult(BaseModel):
     """Result when recognition confidence is low"""
-    comprehensive_explanation: str = Field(description="A comprehensive explanation of the image quality")
+    comprehensive_explanation: str = Field(description="A comprehensive summary of the issues and tips")
     issue: str = Field(description="The primary issue: BLUR, TOO_CLOSE, TOO_FAR, LIGHTING, OBSTRUCTION, or UNCLEAR")
     friendly_message: str = Field(description="Child-friendly explanation of the problem")
     guesses: List[str] = Field(description="2-3 guesses about what the object might be")
-    confidence_of_guesses: List[float] = Field(description="Confidence scores for each guess")
 
 
 class DetectedObject(BaseModel):

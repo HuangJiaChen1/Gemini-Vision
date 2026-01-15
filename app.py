@@ -117,6 +117,37 @@ def recognize():
         }), 500
 
 
+@app.route('/api/describe', methods=['POST'])
+def describe():
+    """
+    Generate a description for a given object name.
+    Accepts: JSON with 'object_name'
+    Returns: ApiResponse with recognition result containing description
+    """
+    try:
+        if not request.is_json or 'object_name' not in request.json:
+            return jsonify({
+                'success': False,
+                'error': 'Please provide an object name.'
+            }), 400
+
+        object_name = request.json['object_name']
+        result = gemini_service.describe_object(object_name)
+
+        response = ApiResponse(
+            success=True,
+            result=result
+        )
+        return jsonify(response.model_dump())
+
+    except Exception as e:
+        print(f"Error in /api/describe: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'Something went wrong! Let\'s try again.'
+        }), 500
+
+
 @app.errorhandler(404)
 def not_found(error):
     """Handle 404 errors"""

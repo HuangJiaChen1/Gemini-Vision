@@ -1,8 +1,8 @@
 import json
-from typing import Optional, Union
+from typing import Union
 from google import genai
 from google.genai import types
-from models.response_models import RecognitionResult, DiagnosticResult, MultiObjectResult, ImageAnalysis, ImageDecision
+from models.response_models import RecognitionResult, DiagnosticResult, MultiObjectResult, ImageAnalysis
 
 
 class GeminiService:
@@ -53,20 +53,27 @@ When analyzing an image, follow this "Stream of Thought" format:
 2. **Hypothesis Generation:** Try to guess what the subject(s) are. Use phrases like "I am suggesting maybe...", "This looks like it could be...", or "It seems the user is trying to capture..."
 3. **Identify Distortions/Issues:** Explicitly name any problems (e.g., macro blur, low light noise, glass reflection, motion blur, extreme cropping, multiple competing subjects).
 4. **Quality Assessment:** Rate the overall image quality based on focus, lighting, framing, and clarity.
+5. **Guidance:** If there are issues, provide 1-2 sentences of child-friendly advice to help take a better photo. Be specific to what you see.
 
 **Tone:** Helpful, slightly inquisitive, and deductive.
 
-Provide your response in JSON format. The "comprehensive_explanation" field must describe exactly what you see, written in the stream-of-thought style above. Be concise but thorough.
+Provide your response in JSON format:
 
 {
   "comprehensive_explanation": "Hmm, I see... Looking closely at this image, I notice... This looks like it could be... The image quality appears to be...",
   "image_quality": "GOOD|MODERATE|POOR",
-  "quality_issues": ["issue1", "issue2"]
+  "quality_issues": ["issue1", "issue2"],
+  "detected_objects": ["Object1", "Object2"],
+  "guidance": "Child-friendly advice based on the actual issues you see. Empty string if no issues."
 }
 
 Notes:
 - quality_issues should be an empty array [] if there are no issues
-- Focus on OBSERVATION, not decisions about what to do next
+- detected_objects: list ACTUAL object names you can identify (e.g., "Building", "Hand", "Car")
+- NEVER use descriptions in detected_objects (e.g., "red object", "blurry thing")
+- guidance should address the MAIN issue you identified, not all issues
+- For focus/blur problems: suggest moving camera closer or further (don't say "focus")
+- Keep guidance brief and friendly
 """
 
         try:
@@ -85,14 +92,21 @@ Notes:
 
             if response.parsed:
                 result = response.parsed
+                # Set recommendation based on quality and objects
+                result = self._set_recommendation(result)
                 print(f"Stage 1 Analysis: {result.comprehensive_explanation}...")
-                print(f"Quality: {result.image_quality}, Issues: {result.quality_issues}")
+                print(f"Quality: {result.image_quality}, Issues: {result.quality_issues}, Objects: {result.detected_objects}")
+                print(f"Recommendation: {result.recommendation}")
                 return result
             else:
                 return ImageAnalysis(
                     comprehensive_explanation="Hmm, I'm having trouble analyzing this image clearly.",
                     image_quality="POOR",
-                    quality_issues=["analysis_failed"]
+                    quality_issues=["analysis_failed"],
+                    detected_objects=[],
+                    guidance="Try taking another photo!",
+                    confidence_level="LOW",
+                    recommendation="GUIDE"
                 )
 
         except Exception as e:
@@ -100,192 +114,110 @@ Notes:
             return ImageAnalysis(
                 comprehensive_explanation="Something went wrong while analyzing this image.",
                 image_quality="POOR",
-                quality_issues=["error"]
-            )
-
-    def make_decision(self, analysis: ImageAnalysis) -> ImageDecision:
-        """
-        Stage 2: Make decisions based on the analysis.
-        Interprets the analysis to determine object count, names, confidence, and next action.
-
-        Args:
-            analysis: The Stage 1 analysis result
-
-        Returns:
-            ImageDecision with object details and recommendation
-        """
-        prompt = f"""Based on this image analysis, make decisions about what to do next.
-
-IMAGE ANALYSIS:
-{analysis.comprehensive_explanation}
-
-Image Quality: {analysis.image_quality}
-Quality Issues: {', '.join(analysis.quality_issues) if analysis.quality_issues else 'None'}
-
-YOUR TASK:
-1. Count how many distinct objects are mentioned in the analysis
-2. List the names of objects detected
-3. Assess confidence level (HIGH if clear identification, MEDIUM if somewhat clear, LOW if uncertain)
-4. Recommend next action:
-   - CLASSIFY: One clear main object, good/moderate quality → identify it
-   - MULTI_SELECT: Multiple distinct objects (2-4) mentioned → let user pick which one
-   - GUIDE: Poor quality OR unclear OR quality issues present → help user take better photo
-
-Output JSON:
-{{
-  "object_count": 1,
-  "detected_objects": ["object name"],
-  "confidence_level": "HIGH|MEDIUM|LOW",
-  "recommendation": "CLASSIFY|MULTI_SELECT|GUIDE"
-}}
-
-Rules:
-- If image_quality is POOR, recommendation should usually be GUIDE
-- If multiple distinct objects are clearly mentioned, recommendation should be MULTI_SELECT
-- If one clear object with good quality, recommendation should be CLASSIFY
-- confidence_level reflects how certain the analysis is about object identification
-"""
-
-        try:
-            response = self._client.models.generate_content(
-                model=self._config["model_name"],
-                contents=[
-                    types.Part.from_text(text=prompt),
-                ],
-                config=types.GenerateContentConfig(
-                    temperature=0.1,
-                    response_mime_type="application/json",
-                    response_schema=ImageDecision
-                )
-            )
-
-            if response.parsed:
-                result = response.parsed
-                print(f"Stage 2 Decision: objects={result.detected_objects}, confidence={result.confidence_level}, recommendation={result.recommendation}")
-                return result
-            else:
-                return ImageDecision(
-                    object_count=0,
-                    detected_objects=[],
-                    confidence_level="LOW",
-                    recommendation="GUIDE"
-                )
-
-        except Exception as e:
-            print(f"Error in make_decision: {e}")
-            return ImageDecision(
-                object_count=0,
+                quality_issues=["error"],
                 detected_objects=[],
+                guidance="Try taking another photo!",
                 confidence_level="LOW",
                 recommendation="GUIDE"
             )
 
+    def _set_recommendation(self, analysis: ImageAnalysis) -> ImageAnalysis:
+        """Set recommendation and confidence based on analysis results."""
+        # Determine confidence based on quality
+        if analysis.image_quality == "GOOD":
+            analysis.confidence_level = "HIGH"
+        elif analysis.image_quality == "MODERATE":
+            analysis.confidence_level = "MEDIUM"
+        else:
+            analysis.confidence_level = "LOW"
+
+        # Determine recommendation
+        object_count = len(analysis.detected_objects)
+        if analysis.image_quality == "POOR":
+            analysis.recommendation = "GUIDE"
+        elif object_count >= 2:
+            analysis.recommendation = "MULTI_SELECT"
+        elif object_count == 1:
+            analysis.recommendation = "CLASSIFY"
+        else:
+            analysis.recommendation = "GUIDE"
+
+        return analysis
+
     def recognize_object(self, image_bytes: bytes, mime_type: str = "image/jpeg") -> Union[RecognitionResult, MultiObjectResult, DiagnosticResult]:
         """
-        Main entry point using three-stage architecture.
-
-        Stage 1: Analyze the image (observation only)
-        Stage 2: Make decision based on analysis
-        Stage 3: Process based on decision (classify, multi-select, or guide)
+        Main entry point: analyze image and process based on recommendation.
 
         Args:
             image_bytes: Raw image data
             mime_type: MIME type of the image
 
         Returns:
-            RecognitionResult, MultiObjectResult, or DiagnosticResult based on decision
+            RecognitionResult, MultiObjectResult, or DiagnosticResult based on analysis
         """
-        # Stage 1: Pure observation - analyze the image
+        # Analyze the image (includes recommendation)
         analysis = self.analyze_image(image_bytes, mime_type)
 
-        # Stage 2: Make decision based on analysis
-        decision = self.make_decision(analysis)
+        # Process based on recommendation
+        return self._process_analysis(image_bytes, mime_type, analysis)
 
-        # Stage 3: Process based on decision
-        return self._process_with_decision(image_bytes, mime_type, analysis, decision)
-
-    def _process_with_decision(self, image_bytes: bytes, mime_type: str, analysis: ImageAnalysis, decision: ImageDecision) -> Union[RecognitionResult, MultiObjectResult, DiagnosticResult]:
+    def _process_analysis(self, image_bytes: bytes, mime_type: str, analysis: ImageAnalysis) -> Union[RecognitionResult, MultiObjectResult, DiagnosticResult]:
         """
-        Stage 3: Execute the appropriate action based on decision.
+        Process the analysis and return appropriate result.
 
         Args:
             image_bytes: Raw image data
             mime_type: MIME type of the image
-            analysis: The Stage 1 analysis result
-            decision: The Stage 2 decision result
+            analysis: The analysis result with recommendation
 
         Returns:
             Appropriate result type based on recommendation
         """
-        if decision.recommendation == "GUIDE":
-            # Image has quality issues - generate guidance for the child
-            return self._generate_guidance(analysis, decision)
+        if analysis.recommendation == "GUIDE":
+            return self._generate_guidance(analysis)
 
-        elif decision.recommendation == "MULTI_SELECT":
-            # Multiple objects detected - get details with bounding boxes
-            return self._detect_objects_with_context(image_bytes, mime_type, analysis, decision)
+        elif analysis.recommendation == "MULTI_SELECT":
+            return self._detect_objects_with_context(image_bytes, mime_type, analysis)
 
         else:  # CLASSIFY
-            # Single clear object - classify it with context from analysis
-            return self._classify_with_context(image_bytes, mime_type, analysis, decision)
+            return self._classify_with_context(image_bytes, mime_type, analysis)
 
-    def _generate_guidance(self, analysis: ImageAnalysis, decision: ImageDecision) -> DiagnosticResult:
+    def _generate_guidance(self, analysis: ImageAnalysis) -> DiagnosticResult:
         """
-        Generate child-friendly guidance based on image quality issues.
+        Build DiagnosticResult using guidance from Stage 1 analysis.
 
         Args:
-            analysis: The Stage 1 analysis result
-            decision: The Stage 2 decision result
+            analysis: The analysis result (includes guidance and detected_objects)
 
         Returns:
-            DiagnosticResult with friendly guidance
+            DiagnosticResult with photo-specific friendly guidance
         """
-        # Map quality issues to friendly messages
-        issue_messages = {
-            "blur": "The photo is a bit blurry! Try holding the camera very still.",
-            "dark": "It's too dark to see! Try moving to a brighter spot.",
-            "bright": "It's too bright! Try moving away from the light.",
-            "cropped": "Part of the object is cut off! Try stepping back a little.",
-            "obstruction": "Something is blocking the view! Try moving it out of the way.",
-            "too_close": "You're too close! Try stepping back so I can see the whole thing.",
-            "too_far": "You're too far away! Try getting closer so I can see better.",
-            "multiple_unclear": "I see a few things but I'm not sure which one you want! Try pointing at just one thing.",
-        }
+        main_issue = analysis.quality_issues[0].upper() if analysis.quality_issues else "UNCLEAR"
+        guesses = analysis.detected_objects[:3] if analysis.detected_objects else []
+        friendly_message = analysis.guidance if analysis.guidance else "Try taking another photo!"
 
-        # Determine the main issue and friendly message
-        main_issue = analysis.quality_issues[0] if analysis.quality_issues else "UNCLEAR"
-        friendly_message = issue_messages.get(
-            main_issue.lower(),
-            "Hmm, I'm having trouble seeing clearly! Try taking another photo."
-        )
-
-        # Use detected objects from decision as guesses
-        guesses = decision.detected_objects[:3] if decision.detected_objects else ["something", "an object", "a thing"]
-        confidence_scores = [0.4, 0.3, 0.2][:len(guesses)]
+        print(f"Guidance from Stage 1: {friendly_message}")
 
         return DiagnosticResult(
             comprehensive_explanation=analysis.comprehensive_explanation,
-            issue=main_issue.upper() if main_issue else "UNCLEAR",
+            issue=main_issue,
             friendly_message=friendly_message,
-            guesses=guesses,
-            confidence_of_guesses=confidence_scores
+            guesses=guesses
         )
 
-    def _classify_with_context(self, image_bytes: bytes, mime_type: str, analysis: ImageAnalysis, decision: ImageDecision) -> RecognitionResult:
+    def _classify_with_context(self, image_bytes: bytes, mime_type: str, analysis: ImageAnalysis) -> RecognitionResult:
         """
         Classify a single object using context from the analysis.
 
         Args:
             image_bytes: Raw image data
             mime_type: MIME type of the image
-            analysis: The Stage 1 analysis result
-            decision: The Stage 2 decision result
+            analysis: The analysis result
 
         Returns:
             RecognitionResult with object identification
         """
-        # Use the analysis and decision context in the prompt
-        context = f"Based on my initial analysis: {analysis.comprehensive_explanation}\n\nThe main object appears to be: {', '.join(decision.detected_objects)}."
+        context = f"Based on my initial analysis: {analysis.comprehensive_explanation}\n\nThe main object appears to be: {', '.join(analysis.detected_objects)}."
 
         prompt = f"""You are helping a child identify an object in a photo.
 
@@ -300,13 +232,19 @@ Rules:
 - Provide a confidence score from 0.0 to 1.0
 - Use simple, child-friendly language (avoid technical terms)
 - Make the description fun and educational!
+- object_name must be the ACTUAL name of the object (e.g., "Banana", "Basketball", "Cat")
+- NEVER use color + shape descriptions (e.g., "green object", "red sphere", "pink thing")
+- If unsure, make your best guess at what the object actually IS
 
 Output JSON format:
 {{
-  "object_name": "friendly name of the object",
+  "object_name": "actual name of the object",
   "confidence": 0.95,
   "description": "A fun, simple sentence describing the object for a child"
 }}
+
+Examples of good object_name: "Banana", "Basketball", "Cat", "Book", "Cup"
+Examples of BAD object_name: "yellow object", "round thing", "furry animal"
 
 Examples of good descriptions:
 - "A yummy yellow fruit that monkeys love!"
@@ -333,9 +271,8 @@ Examples of good descriptions:
                 print(f"Classification result: {result.object_name} (confidence: {result.confidence})")
                 return result
             else:
-                # Use decision as fallback
                 return RecognitionResult(
-                    object_name=decision.detected_objects[0] if decision.detected_objects else "Unknown",
+                    object_name=analysis.detected_objects[0] if analysis.detected_objects else "Unknown",
                     confidence=0.5,
                     description="I found something interesting!"
                 )
@@ -348,21 +285,20 @@ Examples of good descriptions:
                 description="Something went wrong! Let's try again."
             )
 
-    def _detect_objects_with_context(self, image_bytes: bytes, mime_type: str, analysis: ImageAnalysis, decision: ImageDecision) -> MultiObjectResult:
+    def _detect_objects_with_context(self, image_bytes: bytes, mime_type: str, analysis: ImageAnalysis) -> MultiObjectResult:
         """
         Detect multiple objects with bounding boxes using context from analysis.
 
         Args:
             image_bytes: Raw image data
             mime_type: MIME type of the image
-            analysis: The Stage 1 analysis result
-            decision: The Stage 2 decision result
+            analysis: The analysis result
 
         Returns:
             MultiObjectResult with objects and bounding boxes
         """
-        # Use the analysis and decision context in the prompt
-        context = f"Based on my initial analysis: {analysis.comprehensive_explanation}\n\nI detected {decision.object_count} objects: {', '.join(decision.detected_objects)}."
+        object_count = len(analysis.detected_objects)
+        context = f"Based on my initial analysis: {analysis.comprehensive_explanation}\n\nI detected {object_count} objects: {', '.join(analysis.detected_objects)}."
 
         prompt = f"""You are helping a child identify objects in a photo. There are multiple things visible.
 
@@ -376,6 +312,9 @@ Rules:
 - Use simple, child-friendly names and descriptions
 - Provide bounding boxes in [ymin, xmin, ymax, xmax] format, normalized to 0-1000 scale
 - Make descriptions fun and educational!
+- object_name must be the ACTUAL name of each object (e.g., "Apple", "Cup", "Book")
+- NEVER use color + shape descriptions (e.g., "red object", "blue container", "round thing")
+- If unsure, make your best guess at what the object actually IS
 
 Output JSON format:
 {{
@@ -389,6 +328,9 @@ Output JSON format:
   ],
   "message": "I see a few things here! Which one do you want to know about?"
 }}
+
+Examples of good object_name: "Apple", "Cup", "Book", "Phone", "Pen"
+Examples of BAD object_name: "red object", "white container", "rectangular thing"
 
 IMPORTANT about box_2d:
 - Format is [ymin, xmin, ymax, xmax] where each value is 0-1000
@@ -421,17 +363,17 @@ IMPORTANT about box_2d:
                     print(f"Multi-object result: {[obj['object_name'] for obj in data['objects']]}")
                     return result
 
-            # Fallback: create result from decision
-            return self._create_multi_object_fallback(decision)
+            # Fallback: create result from analysis
+            return self._create_multi_object_fallback(analysis)
 
         except Exception as e:
             print(f"Error in _detect_objects_with_context: {e}")
-            return self._create_multi_object_fallback(decision)
+            return self._create_multi_object_fallback(analysis)
 
-    def _create_multi_object_fallback(self, decision: ImageDecision) -> MultiObjectResult:
-        """Create a fallback MultiObjectResult from decision data."""
+    def _create_multi_object_fallback(self, analysis: ImageAnalysis) -> MultiObjectResult:
+        """Create a fallback MultiObjectResult from analysis data."""
         objects = []
-        for i, obj_name in enumerate(decision.detected_objects[:4]):
+        for i, obj_name in enumerate(analysis.detected_objects[:4]):
             objects.append({
                 "object_name": obj_name,
                 "confidence": 0.7 - (i * 0.1),
@@ -443,3 +385,60 @@ IMPORTANT about box_2d:
             objects=objects,
             message="I see a few things! Which one do you want to know about?"
         )
+
+    def describe_object(self, object_name: str) -> RecognitionResult:
+        """
+        Generate a child-friendly description for a given object name.
+
+        Args:
+            object_name: The name of the object to describe
+
+        Returns:
+            RecognitionResult with the object name and a fun description
+        """
+        prompt = f"""Generate a fun, child-friendly description for: {object_name}
+
+Rules:
+- Write 1-2 simple sentences a child would enjoy
+- Make it educational and fun
+- Use simple words
+
+Output JSON:
+{{
+  "object_name": "{object_name}",
+  "confidence": 1.0,
+  "description": "A fun, simple description for a child"
+}}
+"""
+
+        try:
+            response = self._client.models.generate_content(
+                model=self._config["model_name"],
+                contents=[
+                    types.Part.from_text(text=prompt),
+                ],
+                config=types.GenerateContentConfig(
+                    temperature=0.7,
+                    response_mime_type="application/json",
+                    response_schema=RecognitionResult
+                )
+            )
+
+            if response.parsed:
+                result = response.parsed
+                print(f"Generated description for {object_name}: {result.description}")
+                return result
+            else:
+                return RecognitionResult(
+                    object_name=object_name,
+                    confidence=1.0,
+                    description=f"This is a {object_name}!"
+                )
+
+        except Exception as e:
+            print(f"Error in describe_object: {e}")
+            return RecognitionResult(
+                object_name=object_name,
+                confidence=1.0,
+                description=f"This is a {object_name}!"
+            )

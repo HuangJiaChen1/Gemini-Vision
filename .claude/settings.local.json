@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(.venvScriptspython.exe -m pip install flask==3.0.0 flask-cors==4.0.0 python-dotenv==1.0.0)",
-      "Bash(ls -la \"C:\\\\Users\\\\123\\\\Documents\\\\GitHub\\\\Vision\\\\services\"\" && ls -la \"C:Users123DocumentsGitHubVisiontemplates\"\")"
+      "Bash(ls -la \"C:\\\\Users\\\\123\\\\Documents\\\\GitHub\\\\Vision\\\\services\"\" && ls -la \"C:Users123DocumentsGitHubVisiontemplates\"\")",
+      "Bash(dir \"C:\\\\Users\\\\123\\\\Documents\\\\GitHub\\\\Gemini-Vision\" /B)",
+      "WebSearch"
     ]
   }
 }

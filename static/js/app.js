@@ -214,6 +214,7 @@ function displaySuccess(result) {
 
 function displayDiagnostic(diagnostic) {
     const diagnosticMessage = document.getElementById('diagnostic-message');
+    const guessesSection = document.getElementById('guesses-section');
     const guessesButtons = document.getElementById('guesses-buttons');
 
     diagnosticMessage.textContent = diagnostic.friendly_message;
@@ -221,33 +222,66 @@ function displayDiagnostic(diagnostic) {
     // Clear previous guesses
     guessesButtons.innerHTML = '';
 
-    // Create guess buttons
-    diagnostic.guesses.forEach((guess, index) => {
-        const button = document.createElement('button');
-        button.className = 'guess-button';
-        button.textContent = guess;
+    // Hide guesses section if no guesses, show if there are guesses
+    if (!diagnostic.guesses || diagnostic.guesses.length === 0) {
+        guessesSection.style.display = 'none';
+    } else {
+        guessesSection.style.display = 'block';
 
-        // Add confidence indicator if available
-        if (diagnostic.confidence_of_guesses && diagnostic.confidence_of_guesses[index]) {
-            const confidence = Math.round(diagnostic.confidence_of_guesses[index] * 100);
-            button.textContent += ` (${confidence}%)`;
-        }
+        // Create guess buttons
+        diagnostic.guesses.forEach((guess, index) => {
+            const button = document.createElement('button');
+            button.className = 'guess-button';
+            button.textContent = guess;
 
-        button.onclick = () => handleGuessSelection(guess);
-        guessesButtons.appendChild(button);
-    });
+            // Add confidence indicator if available
+            if (diagnostic.confidence_of_guesses && diagnostic.confidence_of_guesses[index]) {
+                const confidence = Math.round(diagnostic.confidence_of_guesses[index] * 100);
+                button.textContent += ` (${confidence}%)`;
+            }
+
+            button.onclick = () => handleGuessSelection(guess);
+            guessesButtons.appendChild(button);
+        });
+    }
 
     showScreen('diagnostic');
 }
 
-function handleGuessSelection(guess) {
-    // User confirmed a guess
-    const result = {
-        object_name: guess,
-        confidence: 1.0,
-        description: `Great! You said it's a ${guess}!`
-    };
-    displaySuccess(result);
+async function handleGuessSelection(guess) {
+    // Show loading state
+    showScreen('loading');
+
+    try {
+        const response = await fetch('/api/describe', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ object_name: guess })
+        });
+
+        const data = await response.json();
+
+        if (data.success && data.result) {
+            displaySuccess(data.result);
+        } else {
+            // Fallback if API fails
+            displaySuccess({
+                object_name: guess,
+                confidence: 1.0,
+                description: `This is a ${guess}!`
+            });
+        }
+    } catch (error) {
+        console.error('Error getting description:', error);
+        // Fallback on error
+        displaySuccess({
+            object_name: guess,
+            confidence: 1.0,
+            description: `This is a ${guess}!`
+        });
+    }
 }
 
 // Colors for bounding boxes and buttons (matching)
