@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 import os
+import time
 from services.gemini_service import GeminiService
 from services.image_processor import ImageProcessor
 from models.response_models import ApiResponse, RecognitionResult, MultiObjectResult, DiagnosticResult
@@ -68,6 +69,8 @@ def recognize():
                 'error': 'No image provided! Please send a photo.'
             }), 400
 
+        start_time = time.time()
+
         # Validate image
         is_valid, error_message = image_processor.validate_image(image_bytes)
         if not is_valid:
@@ -86,6 +89,9 @@ def recognize():
         # Stage 1: Analyze image (quality, objects, recommendation)
         # Stage 2: Process based on analysis (classify, multi-select, or guide)
         result = gemini_service.recognize_object(image_bytes, mime_type)
+
+        processing_time = time.time() - start_time
+        print(f"Image processing time: {processing_time:.2f} seconds")
 
         # Build response based on result type
         if isinstance(result, MultiObjectResult):
@@ -173,5 +179,5 @@ if __name__ == '__main__':
 
     # Run Flask app
     print("Starting Object Detective web app...")
-    print("Open http://localhost:5000 in your browser!")
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    print("Open http://localhost:5002 in your browser!")
+    app.run(debug=True, host='0.0.0.0', port=5002)

@@ -69,8 +69,9 @@ Provide your response in JSON format:
 
 Notes:
 - quality_issues should be an empty array [] if there are no issues
-- detected_objects: list ACTUAL object names you can identify (e.g., "Building", "Hand", "Car")
-- NEVER use descriptions in detected_objects (e.g., "red object", "blurry thing")
+- detected_objects: list SPECIFIC, CONCRETE object names (e.g., "Toy", "Building", "Cup")
+- NEVER use vague material-based or descriptive labels (e.g., "Plastic object", "Metal thing", "Green item")
+- If you are unsure, you MUST make an educated guess of the object's identity or category rather than describing its material.
 - guidance should address the MAIN issue you identified, not all issues
 - For focus/blur problems: suggest moving camera closer or further (don't say "focus")
 - Keep guidance brief and friendly
@@ -229,17 +230,15 @@ Now provide a final, confident identification with a fun, child-friendly descrip
 Rules:
 - Focus on the MAIN object
 - Give ONE clear answer
-- Provide a confidence score from 0.0 to 1.0
 - Use simple, child-friendly language (avoid technical terms)
 - Make the description fun and educational!
-- object_name must be the ACTUAL name of the object (e.g., "Banana", "Basketball", "Cat")
-- NEVER use color + shape descriptions (e.g., "green object", "red sphere", "pink thing")
+- object_name must be the SPECIFIC, CONCRETE name of the object (e.g., "Banana", "Basketball", "Toy")
+- NEVER use material-based or descriptive labels (e.g., "Plastic object", "Metal thing", "Green item")
 - If unsure, make your best guess at what the object actually IS
 
 Output JSON format:
 {{
   "object_name": "actual name of the object",
-  "confidence": 0.95,
   "description": "A fun, simple sentence describing the object for a child"
 }}
 
@@ -305,15 +304,14 @@ Examples of good descriptions:
 Context from initial analysis:
 {context}
 
-Now provide details for each object including bounding boxes so we can show the child where each one is.
+Now provide details for each object so the child can pick which one they want to learn about.
 
 Rules:
 - List 2-4 distinct objects that a child would point to
 - Use simple, child-friendly names and descriptions
-- Provide bounding boxes in [ymin, xmin, ymax, xmax] format, normalized to 0-1000 scale
 - Make descriptions fun and educational!
-- object_name must be the ACTUAL name of each object (e.g., "Apple", "Cup", "Book")
-- NEVER use color + shape descriptions (e.g., "red object", "blue container", "round thing")
+- object_name must be the SPECIFIC, CONCRETE name of each object (e.g., "Apple", "Cup", "Toy")
+- NEVER use material-based or descriptive labels (e.g., "Plastic object", "Metal thing", "Round item")
 - If unsure, make your best guess at what the object actually IS
 
 Output JSON format:
@@ -322,8 +320,7 @@ Output JSON format:
     {{
       "object_name": "Apple",
       "confidence": 0.9,
-      "description": "A yummy red fruit that keeps the doctor away!",
-      "box_2d": [ymin, xmin, ymax, xmax]
+      "description": "A yummy red fruit that keeps the doctor away!"
     }}
   ],
   "message": "I see a few things here! Which one do you want to know about?"
@@ -331,11 +328,6 @@ Output JSON format:
 
 Examples of good object_name: "Apple", "Cup", "Book", "Phone", "Pen"
 Examples of BAD object_name: "red object", "white container", "rectangular thing"
-
-IMPORTANT about box_2d:
-- Format is [ymin, xmin, ymax, xmax] where each value is 0-1000
-- 0 = top/left edge, 1000 = bottom/right edge
-- The box should tightly surround each object
 """
 
         try:
@@ -377,8 +369,7 @@ IMPORTANT about box_2d:
             objects.append({
                 "object_name": obj_name,
                 "confidence": 0.7 - (i * 0.1),
-                "description": f"This looks like a {obj_name}!",
-                "box_2d": [100 + i*200, 100 + i*200, 400 + i*200, 400 + i*200]  # Placeholder boxes
+                "description": f"This looks like a {obj_name}!"
             })
 
         return MultiObjectResult(

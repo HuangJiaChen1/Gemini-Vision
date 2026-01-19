@@ -325,9 +325,8 @@ body {
     margin-bottom: 20px;
 }
 
-/* Bounding Box Image Container */
-.bbox-image-container {
-    position: relative;
+/* Selection Image Container */
+.selection-image-container {
     width: 100%;
     max-width: 500px;
     margin: 0 auto 20px;
@@ -340,15 +339,6 @@ body {
     width: 100%;
     height: auto;
     display: block;
-}
-
-#bbox-canvas {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
 }
 
 .object-buttons {

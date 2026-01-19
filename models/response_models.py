@@ -32,9 +32,7 @@ class DiagnosticResult(BaseModel):
 class DetectedObject(BaseModel):
     """A single detected object in a multi-object image"""
     object_name: str = Field(description="The friendly name of the object")
-    confidence: float = Field(description="Confidence score from 0.0 to 1.0", ge=0.0, le=1.0)
     description: str = Field(description="A simple, child-friendly description of the object")
-    box_2d: List[int] = Field(description="Bounding box [ymin, xmin, ymax, xmax] normalized to 0-1000 scale")
 
 
 class MultiObjectResult(BaseModel):

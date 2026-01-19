@@ -158,7 +158,7 @@ async function analyzeImage() {
             body: JSON.stringify({
                 image: AppState.imageDataUrl
             }),
-            timeout: 30000  // 30 second timeout
+            timeout: 120000  // 2 minute timeout
         });
 
         if (!response.ok) {
@@ -284,14 +284,13 @@ async function handleGuessSelection(guess) {
     }
 }
 
-// Colors for bounding boxes and buttons (matching)
-const BBOX_COLORS = ['#A855F7', '#3B82F6', '#10B981', '#F59E0B'];
+// Colors for buttons
+const BUTTON_COLORS = ['#A855F7', '#3B82F6', '#10B981', '#F59E0B'];
 
 function displayMultiObject(multiObject) {
     const selectionMessage = document.getElementById('selection-message');
     const objectButtons = document.getElementById('object-buttons');
     const selectionImage = document.getElementById('selection-image');
-    const bboxCanvas = document.getElementById('bbox-canvas');
 
     selectionMessage.textContent = multiObject.message;
 
@@ -301,14 +300,9 @@ function displayMultiObject(multiObject) {
     // Clear previous buttons
     objectButtons.innerHTML = '';
 
-    // Wait for image to load, then draw bounding boxes
-    selectionImage.onload = () => {
-        drawBoundingBoxes(multiObject.objects, selectionImage, bboxCanvas);
-    };
-
     // Create color-coded buttons for each detected object
     multiObject.objects.forEach((obj, index) => {
-        const color = BBOX_COLORS[index % BBOX_COLORS.length];
+        const color = BUTTON_COLORS[index % BUTTON_COLORS.length];
         const button = document.createElement('button');
         button.className = 'object-button';
         button.textContent = obj.object_name;
@@ -331,62 +325,6 @@ function displayMultiObject(multiObject) {
     });
 
     showScreen('selection');
-}
-
-function drawBoundingBoxes(objects, imageElement, canvas) {
-    const ctx = canvas.getContext('2d');
-
-    // Match canvas size to displayed image size
-    const displayWidth = imageElement.clientWidth;
-    const displayHeight = imageElement.clientHeight;
-
-    canvas.width = displayWidth;
-    canvas.height = displayHeight;
-
-    // Clear canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    objects.forEach((obj, index) => {
-        if (!obj.box_2d || obj.box_2d.length !== 4) return;
-
-        const color = BBOX_COLORS[index % BBOX_COLORS.length];
-        const [ymin, xmin, ymax, xmax] = obj.box_2d;
-
-        // Convert from 0-1000 normalized coordinates to pixel coordinates
-        const x1 = (xmin / 1000) * canvas.width;
-        const y1 = (ymin / 1000) * canvas.height;
-        const x2 = (xmax / 1000) * canvas.width;
-        const y2 = (ymax / 1000) * canvas.height;
-
-        const boxWidth = x2 - x1;
-        const boxHeight = y2 - y1;
-
-        // Draw rectangle
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 3;
-        ctx.strokeRect(x1, y1, boxWidth, boxHeight);
-
-        // Draw label background
-        ctx.font = 'bold 14px Arial';
-        const textMetrics = ctx.measureText(obj.object_name);
-        const textWidth = textMetrics.width;
-        const textHeight = 18;
-        const padding = 4;
-
-        // Label position (above the box, or inside if at top edge)
-        let labelY = y1 - textHeight - padding;
-        if (labelY < 0) {
-            labelY = y1 + padding;
-        }
-
-        // Draw label background
-        ctx.fillStyle = color;
-        ctx.fillRect(x1, labelY, textWidth + padding * 2, textHeight + padding);
-
-        // Draw label text
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillText(obj.object_name, x1 + padding, labelY + textHeight - 2);
-    });
 }
 
 function handleObjectSelection(obj) {
